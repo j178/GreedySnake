@@ -1,78 +1,63 @@
+import javax.swing.SwingUtilities;
+import javax.swing.Timer;
+import java.awt.Window;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
 import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
 
 /**
  * Created by  johnj on 10/31/16.
  */
-public class GameController implements KeyListener, Runnable {
+public class GameController implements KeyListener, ActionListener {
 
     private final Grid grid;
     private final GameView gameView;
+    private final Timer timer;
 
-    private enum STATUS {RUNNING, PAUSED, GAMEOVER, EXIT}
+    private enum STATUS {RUNNING, PAUSED, GAMEOVER}
 
     private STATUS status;
 
     public GameController(Grid grid, GameView gameView) {
         this.grid = grid;
         this.gameView = gameView;
+        this.timer = new Timer(Settings.MOVE_INTERVAL, this);
         this.status = STATUS.PAUSED;
     }
 
     @Override
     public void keyPressed(KeyEvent keyEvent) {
-
         switch (keyEvent.getKeyCode()) {
             case KeyEvent.VK_UP:
             case KeyEvent.VK_W:
-                synchronized (this.status) {
-                    if (status == STATUS.RUNNING) {
-                        grid.changeDirection(Direction.UP);
-                    }
-                }
+                changeDirectionIfRunning(Direction.UP);
                 break;
             case KeyEvent.VK_DOWN:
             case KeyEvent.VK_S:
-                synchronized (this.status) {
-                    if (status == STATUS.RUNNING) {
-                        grid.changeDirection(Direction.DOWN);
-                    }
-                }
+                changeDirectionIfRunning(Direction.DOWN);
                 break;
             case KeyEvent.VK_LEFT:
             case KeyEvent.VK_A:
-                synchronized (this.status) {
-                    if (status == STATUS.RUNNING) {
-                        grid.changeDirection(Direction.LEFT);
-                    }
-                }
+                changeDirectionIfRunning(Direction.LEFT);
                 break;
             case KeyEvent.VK_RIGHT:
             case KeyEvent.VK_D:
-                synchronized (this.status) {
-                    if (status == STATUS.RUNNING) {
-                        grid.changeDirection(Direction.RIGHT);
-                    }
-                }
+                changeDirectionIfRunning(Direction.RIGHT);
                 break;
             case KeyEvent.VK_ENTER:
-                if (status == STATUS.GAMEOVER) {
-                    grid.restart();
+                if (restartIfGameOver()) {
                     gameView.draw();
-                    synchronized (this.status) {
-                        status = STATUS.PAUSED;
-                    }
                 }
                 break;
             case KeyEvent.VK_SPACE:
-                synchronized (this.status) {
-                    if (status == STATUS.RUNNING) status = STATUS.PAUSED;
-                    else if (status == STATUS.PAUSED) status = STATUS.RUNNING;
-                }
+                togglePause();
                 break;
             case KeyEvent.VK_ESCAPE:
-                synchronized (this.status) {
-                    status = STATUS.EXIT;
+                timer.stop();
+                Window window = SwingUtilities.getWindowAncestor(gameView.getCanvas());
+                if (window != null) {
+                    window.dispose();
                 }
                 break;
             default:
@@ -87,26 +72,43 @@ public class GameController implements KeyListener, Runnable {
     public void keyReleased(KeyEvent keyEvent) {}
 
     @Override
-    public void run() {
-        while (status != STATUS.EXIT) {
-            //实际运行的时候,好像读不到这个值一样, 这里要等待一段时候, 等待变量值被改变?
-            //两个while之间没有语句, 所以执行的速度是极快的, 几乎等不到status被改变, 这里要同步代码块, 但是该怎么写呢?
-            synchronized (this.status) {
-                while (status == STATUS.RUNNING) {
-                    try {
-                        Thread.sleep(Settings.MOVE_INTERVAL);
-                    } catch (InterruptedException e) {
-                        break;
-                    }
+    public void actionPerformed(ActionEvent actionEvent) {
+        if (status != STATUS.RUNNING) {
+            return;
+        }
 
-                    if (grid.nextRound()) {
-                        gameView.draw();
-                    } else {
-                        gameView.showGameOverMessage();
-                        status = STATUS.GAMEOVER;
-                    }
-                }
-            }
+        if (grid.nextRound()) {
+            gameView.draw();
+        } else {
+            timer.stop();
+            status = STATUS.GAMEOVER;
+            gameView.showGameOverMessage();
+        }
+    }
+
+    private void changeDirectionIfRunning(Direction direction) {
+        if (status == STATUS.RUNNING) {
+            grid.changeDirection(direction);
+        }
+    }
+
+    private boolean restartIfGameOver() {
+        if (status != STATUS.GAMEOVER) {
+            return false;
+        }
+
+        grid.restart();
+        status = STATUS.PAUSED;
+        return true;
+    }
+
+    private void togglePause() {
+        if (status == STATUS.RUNNING) {
+            status = STATUS.PAUSED;
+            timer.stop();
+        } else if (status == STATUS.PAUSED) {
+            status = STATUS.RUNNING;
+            timer.start();
         }
     }
 

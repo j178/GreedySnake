@@ -28,13 +28,13 @@ public class SnakeApp {
         window.addKeyListener(gameController);
         window.setLocationRelativeTo(null);
         window.setVisible(true);
-
-        new Thread(gameController).start();
     }
 
     public static void main(String[] args) {
-        SnakeApp app = new SnakeApp();
-        app.init();
+        SwingUtilities.invokeLater(() -> {
+            SnakeApp app = new SnakeApp();
+            app.init();
+        });
     }
 
 }
